@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import javax.annotation.PreDestroy;
 import javax.servlet.http.Cookie;
 
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,15 @@ import com.ning.http.client.ListenableFuture;
 public class NingRequestService implements RequestService {
 
 	private final Logger log = (Logger) LoggerFactory.getLogger(getClass());
+
+	private final AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
+
+	@PreDestroy
+	public void destroy() {
+		if (!asyncHttpClient.isClosed()) {
+			asyncHttpClient.close();
+		}
+	}
 
 	@Override
 	public Response doSynchronousRequest(Request request) throws Exception {
@@ -66,8 +76,6 @@ public class NingRequestService implements RequestService {
 	 *         value object.
 	 */
 	private BoundRequestBuilder getRequestBuilderFromRequest(Request request) throws UnsupportedEncodingException {
-
-		AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
 
 		String url = request.getUrl();
 
