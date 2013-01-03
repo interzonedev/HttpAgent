@@ -1,6 +1,6 @@
 package com.interzonedev.httpagent;
 
-import java.io.IOException;
+import java.util.concurrent.Future;
 
 /**
  * Interface for performing HTTP requests and returning responses using the {@link Request} and {@link Response} value
@@ -20,9 +20,11 @@ public interface RequestService {
 	 * @return Returns a {@link Response} value object that contains the components, including status and body, of the
 	 *         HTTP response to the HTTP request performed by this method.
 	 * 
-	 * @throws IOException
+	 * @throws Exception
 	 *             Thrown if there is an error performing the HTTP request.
 	 */
-	public Response doRequest(Request request) throws IOException;
+	public Response doSynchronousRequest(Request request) throws Exception;
+
+	public Future<Response> doRequest(Request request) throws Exception;
 
 }

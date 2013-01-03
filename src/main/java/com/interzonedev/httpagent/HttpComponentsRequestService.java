@@ -7,7 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -102,33 +104,72 @@ public class HttpComponentsRequestService implements RequestService {
 		}
 	}
 
+	private class CallableRequest implements Callable<Response> {
+
+		private final Request request;
+
+		private CallableRequest(Request request) {
+			this.request = request;
+		}
+
+		@Override
+		public Response call() throws Exception {
+
+			log.debug("call: Starting request - " + request);
+
+			if (!initialized) {
+				String errorMessage = "HttpComponentsRequestService not initialized";
+				log.error(errorMessage);
+				throw new IllegalStateException(errorMessage);
+			}
+
+			// Assemble the HTTP request from the request value object.
+			HttpRequestBase httpRequestBase = getHttpRequestBaseFromRequest(request);
+
+			log.debug("call: Sending HTTP request");
+
+			// Send the HTTP request.
+			HttpResponse httpResponse = httpClient.execute(httpRequestBase);
+
+			log.debug("call: Received HTTP response");
+
+			// Assemble the response value object from the HTTP response.
+			Response response = transformResponse(request, httpResponse);
+
+			log.debug("call: Assembled response - " + response);
+
+			return response;
+
+		}
+
+	}
+
 	@Override
-	public Response doRequest(Request request) throws IOException {
+	public Response doSynchronousRequest(Request request) throws Exception {
+
+		log.debug("doSynchronousRequest: Starting request - " + request);
+
+		CallableRequest callableRequest = new CallableRequest(request);
+
+		Response response = callableRequest.call();
+
+		log.debug("doSynchronousRequest: Returning response - " + response);
+
+		return response;
+	}
+
+	@Override
+	public Future<Response> doRequest(Request request) throws Exception {
 
 		log.debug("doRequest: Starting request - " + request);
 
-		if (!initialized) {
-			String errorMessage = "HttpComponentsRequestService not initialized";
-			log.error(errorMessage);
-			throw new IllegalStateException(errorMessage);
-		}
+		CallableRequest callableRequest = new CallableRequest(request);
 
-		// Assemble the HTTP request from the request value object.
-		HttpRequestBase httpRequestBase = getHttpRequestBaseFromRequest(request);
+		Future<Response> responseFuture = threadPoolExecutor.submit(callableRequest);
 
-		log.debug("doRequest: Sending HTTP request");
+		log.debug("doRequest: End");
 
-		// Send the HTTP request.
-		HttpResponse httpResponse = httpClient.execute(httpRequestBase);
-
-		log.debug("doRequest: Received HTTP response");
-
-		// Assemble the response value object from the HTTP response.
-		Response response = getResponseFromHttpResponse(request, httpResponse);
-
-		log.debug("doRequest: Assembled response - " + response);
-
-		return response;
+		return responseFuture;
 	}
 
 	/**
@@ -186,9 +227,8 @@ public class HttpComponentsRequestService implements RequestService {
 	}
 
 	/**
-	 * For all request {@link Method}s except for {@link Method#POST} and {@link Method#PUT},
-	 * transforms the specified request parameter name/value pairs into a query string and appends it to the specified
-	 * url.
+	 * For all request {@link Method}s except for {@link Method#POST} and {@link Method#PUT}, transforms the specified
+	 * request parameter name/value pairs into a query string and appends it to the specified url.
 	 * 
 	 * @param method
 	 *            The {@link Method} of the HTTP request.
@@ -223,8 +263,8 @@ public class HttpComponentsRequestService implements RequestService {
 	}
 
 	/**
-	 * Gets an instance of {@link HttpRequestBase} according to the specified {@link Method} initialized with
-	 * the specified url. The request headers and body are not set.
+	 * Gets an instance of {@link HttpRequestBase} according to the specified {@link Method} initialized with the
+	 * specified url. The request headers and body are not set.
 	 * 
 	 * @param method
 	 *            The {@link Method} of the HTTP request.
@@ -280,8 +320,8 @@ public class HttpComponentsRequestService implements RequestService {
 	}
 
 	/**
-	 * For {@link Method#POST} and {@link Method#PUT} sets the request parameter name/value pairs in the
-	 * body of the specified {@link HttpRequestBase}.
+	 * For {@link Method#POST} and {@link Method#PUT} sets the request parameter name/value pairs in the body of the
+	 * specified {@link HttpRequestBase}.
 	 * 
 	 * @param httpRequestBase
 	 *            The {@link HttpRequestBase} that represents the HTTP request.
@@ -328,7 +368,7 @@ public class HttpComponentsRequestService implements RequestService {
 	 * @throws IOException
 	 *             Thrown if there was an error turning the response body into a string.
 	 */
-	private Response getResponseFromHttpResponse(Request request, HttpResponse httpResponse) throws ParseException,
+	private Response transformResponse(Request request, HttpResponse httpResponse) throws ParseException,
 			IOException {
 
 		HttpEntity responseEntity = httpResponse.getEntity();
