@@ -25,7 +25,6 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
 import org.apache.http.ParseException;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
@@ -37,12 +36,9 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
 import org.apache.http.client.utils.URLEncodedUtils;
-import org.apache.http.conn.scheme.PlainSocketFactory;
-import org.apache.http.conn.scheme.Scheme;
-import org.apache.http.conn.scheme.SchemeRegistry;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.PoolingClientConnectionManager;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.LoggerFactory;
@@ -63,7 +59,7 @@ public class HttpComponentsRequestService implements RequestService {
 
     private int maximumThreadPoolSize;
 
-    private HttpClient httpClient;
+    private CloseableHttpClient httpClient;
 
     private ExecutorService threadPoolExecutor;
 
@@ -77,15 +73,14 @@ public class HttpComponentsRequestService implements RequestService {
 
     @PostConstruct
     public void init() {
-        SchemeRegistry schemeRegistry = new SchemeRegistry();
-        schemeRegistry.register(new Scheme("http", 80, PlainSocketFactory.getSocketFactory()));
-        schemeRegistry.register(new Scheme("https", 443, SSLSocketFactory.getSocketFactory()));
+        PoolingHttpClientConnectionManager httpClientConnectionManager = new PoolingHttpClientConnectionManager();
+        httpClientConnectionManager.setMaxTotal(maxTotalHttpConnections);
+        httpClientConnectionManager.setDefaultMaxPerRoute(defaultMaxHttpConnectionsPerRoute);
 
-        PoolingClientConnectionManager httpConnectionManager = new PoolingClientConnectionManager(schemeRegistry);
-        httpConnectionManager.setMaxTotal(maxTotalHttpConnections);
-        httpConnectionManager.setDefaultMaxPerRoute(defaultMaxHttpConnectionsPerRoute);
+        HttpClientBuilder httpClientBuilder = HttpClientBuilder.create().setConnectionManager(
+                httpClientConnectionManager);
 
-        httpClient = new DefaultHttpClient(httpConnectionManager);
+        httpClient = httpClientBuilder.build();
 
         threadPoolExecutor = new ThreadPoolExecutor(coreThreadPoolSize, maximumThreadPoolSize, 60, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>());
@@ -96,7 +91,11 @@ public class HttpComponentsRequestService implements RequestService {
     @PreDestroy
     public void destroy() {
         if (null != httpClient) {
-            httpClient.getConnectionManager().shutdown();
+            try {
+                httpClient.close();
+            } catch (IOException e) {
+                log.error("destroy: Error closing HTTP client", e);
+            }
         }
 
         if (null != threadPoolExecutor) {
@@ -336,6 +335,8 @@ public class HttpComponentsRequestService implements RequestService {
                         throw new RuntimeException(errorMessage, uee);
                     }
                     ((HttpEntityEnclosingRequestBase) httpRequestBase).setEntity(requestBodyEntity);
+                    break;
+                default:
                     break;
             }
         }
