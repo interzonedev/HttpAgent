@@ -234,9 +234,9 @@ public class NingRequestService implements RequestService {
 
 		Map<String, Cookie> cookies = new HashMap<String, Cookie>();
 
-		List<com.ning.http.client.Cookie> ningCookies = ningResponse.getCookies();
+		List<com.ning.http.client.cookie.Cookie> ningCookies = ningResponse.getCookies();
 
-		for (com.ning.http.client.Cookie ningCookie : ningCookies) {
+		for (com.ning.http.client.cookie.Cookie ningCookie : ningCookies) {
 			String cookieName = ningCookie.getName();
 			String cookieValue = ningCookie.getValue();
 
