@@ -128,10 +128,10 @@ public class NingRequestService implements RequestService {
                 switch (method) {
                     case POST:
                     case PUT:
-                        requestBuilder.addParameter(parameterName, parameterValue);
+                        requestBuilder.addFormParam(parameterName, parameterValue);
                         break;
                     default:
-                        requestBuilder.addQueryParameter(parameterName, parameterValue);
+                        requestBuilder.addQueryParam(parameterName, parameterValue);
                 }
 
             }
