@@ -45,9 +45,14 @@ import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Logger;
 
+import com.interzonedev.httpcore.HttpException;
+import com.interzonedev.httpcore.Method;
+import com.interzonedev.httpcore.Request;
+import com.interzonedev.httpcore.Response;
+
 public class HttpComponentsRequestService implements RequestService {
 
-    private final Logger log = (Logger) LoggerFactory.getLogger(getClass());
+    private static final Logger log = (Logger) LoggerFactory.getLogger(HttpComponentsRequestService.class);
 
     private boolean initialized = false;
 
@@ -104,7 +109,6 @@ public class HttpComponentsRequestService implements RequestService {
     }
 
     private class CallableRequest implements Callable<Response> {
-
         private final Request request;
 
         private CallableRequest(Request request) {
@@ -113,62 +117,73 @@ public class HttpComponentsRequestService implements RequestService {
 
         @Override
         public Response call() throws Exception {
+            try {
+                log.debug("call: Start request = " + request);
 
-            log.debug("call: Starting request - " + request);
+                if (!initialized) {
+                    String errorMessage = "HttpComponentsRequestService not initialized";
+                    log.error(errorMessage);
+                    throw new IllegalStateException(errorMessage);
+                }
 
-            if (!initialized) {
-                String errorMessage = "HttpComponentsRequestService not initialized";
-                log.error(errorMessage);
-                throw new IllegalStateException(errorMessage);
+                // Assemble the HTTP request from the request value object.
+                HttpRequestBase httpRequestBase = getHttpRequestBaseFromRequest(request);
+
+                log.debug("call: Sending HTTP request");
+
+                // Send the HTTP request.
+                HttpResponse httpResponse = httpClient.execute(httpRequestBase);
+
+                log.debug("call: Received HTTP response");
+
+                // Assemble the response value object from the HTTP response.
+                Response response = transformResponse(request, httpResponse);
+
+                log.debug("call: Assembled response = " + response);
+
+                return response;
+            } finally {
+                log.debug("call: End");
             }
+        }
+    }
 
-            // Assemble the HTTP request from the request value object.
-            HttpRequestBase httpRequestBase = getHttpRequestBaseFromRequest(request);
+    @Override
+    public Response doSynchronousRequest(Request request) throws HttpException {
+        try {
+            log.debug("doSynchronousRequest: Start - request = " + request);
 
-            log.debug("call: Sending HTTP request");
-
-            // Send the HTTP request.
-            HttpResponse httpResponse = httpClient.execute(httpRequestBase);
-
-            log.debug("call: Received HTTP response");
-
-            // Assemble the response value object from the HTTP response.
-            Response response = transformResponse(request, httpResponse);
-
-            log.debug("call: Assembled response - " + response);
+            CallableRequest callableRequest = new CallableRequest(request);
+            Response response = callableRequest.call();
+            log.debug("doSynchronousRequest: Returning response = " + response);
 
             return response;
-
+        } catch (Exception e) {
+            String errorMessage = "Error performing synchronous HTTP request";
+            log.error("doSynchronousRequest: " + errorMessage, e);
+            throw new HttpException(errorMessage, e);
+        } finally {
+            log.debug("doSynchronousRequest: End");
         }
-
     }
 
     @Override
-    public Response doSynchronousRequest(Request request) throws Exception {
+    public Future<Response> doRequest(Request request) throws HttpException {
+        try {
+            log.debug("doRequest: Starting request - " + request);
 
-        log.debug("doSynchronousRequest: Starting request - " + request);
+            CallableRequest callableRequest = new CallableRequest(request);
+            Future<Response> responseFuture = threadPoolExecutor.submit(callableRequest);
+            log.debug("doRequest: Got response future");
 
-        CallableRequest callableRequest = new CallableRequest(request);
-
-        Response response = callableRequest.call();
-
-        log.debug("doSynchronousRequest: Returning response - " + response);
-
-        return response;
-    }
-
-    @Override
-    public Future<Response> doRequest(Request request) throws Exception {
-
-        log.debug("doRequest: Starting request - " + request);
-
-        CallableRequest callableRequest = new CallableRequest(request);
-
-        Future<Response> responseFuture = threadPoolExecutor.submit(callableRequest);
-
-        log.debug("doRequest: End");
-
-        return responseFuture;
+            return responseFuture;
+        } catch (Exception e) {
+            String errorMessage = "Error performing asynchronous HTTP request";
+            log.error("doRequest: " + errorMessage, e);
+            throw new HttpException(errorMessage, e);
+        } finally {
+            log.debug("doRequest: End");
+        }
     }
 
     /**
@@ -182,7 +197,6 @@ public class HttpComponentsRequestService implements RequestService {
      *         value object.
      */
     private HttpRequestBase getHttpRequestBaseFromRequest(Request request) {
-
         Method method = request.getMethod();
 
         List<NameValuePair> requestNameValuePairs = getNameValuePairsFromRequestParameters(request.getParameters());
@@ -196,7 +210,6 @@ public class HttpComponentsRequestService implements RequestService {
         addRequestParametersToRequestBody(httpRequestBase, method, requestNameValuePairs);
 
         return httpRequestBase;
-
     }
 
     /**
@@ -236,7 +249,6 @@ public class HttpComponentsRequestService implements RequestService {
      *         and the request {@link Method} is not {@link Method#POST} or {@link Method#PUT}.
      */
     private String addQueryStringToUrl(Method method, String url, List<NameValuePair> requestNameValuePairs) {
-
         String alteredUrl = url;
 
         switch (method) {
@@ -254,7 +266,6 @@ public class HttpComponentsRequestService implements RequestService {
         }
 
         return alteredUrl;
-
     }
 
     /**
@@ -268,7 +279,6 @@ public class HttpComponentsRequestService implements RequestService {
      *         the specified url.
      */
     private HttpRequestBase getRawHttpRequestBaseFromMethod(Method method, String url) {
-
         switch (method) {
             case GET:
                 return new HttpGet(url);
@@ -287,7 +297,6 @@ public class HttpComponentsRequestService implements RequestService {
             default:
                 throw new RuntimeException("Unsupported request method: " + method);
         }
-
     }
 
     /**
@@ -298,7 +307,6 @@ public class HttpComponentsRequestService implements RequestService {
      */
     private void addRequestHeadersToHttpRequestBase(HttpRequestBase httpRequestBase,
             Map<String, List<String>> requestHeaders) {
-
         if ((null != requestHeaders) && !requestHeaders.isEmpty()) {
             for (String requestHeaderName : requestHeaders.keySet()) {
                 List<String> requestHeaderValues = requestHeaders.get(requestHeaderName);
@@ -307,7 +315,6 @@ public class HttpComponentsRequestService implements RequestService {
                 }
             }
         }
-
     }
 
     /**
@@ -321,7 +328,6 @@ public class HttpComponentsRequestService implements RequestService {
      */
     private void addRequestParametersToRequestBody(HttpRequestBase httpRequestBase, Method method,
             List<NameValuePair> requestNameValuePairs) {
-
         if (!requestNameValuePairs.isEmpty()) {
             switch (method) {
                 case POST:
@@ -340,7 +346,6 @@ public class HttpComponentsRequestService implements RequestService {
                     break;
             }
         }
-
     }
 
     /**
@@ -356,7 +361,6 @@ public class HttpComponentsRequestService implements RequestService {
      * @throws IOException Thrown if there was an error turning the response body into a string.
      */
     private Response transformResponse(Request request, HttpResponse httpResponse) throws ParseException, IOException {
-
         HttpEntity responseEntity = httpResponse.getEntity();
 
         int statusCode = httpResponse.getStatusLine().getStatusCode();
@@ -377,9 +381,9 @@ public class HttpComponentsRequestService implements RequestService {
 
         Locale locale = httpResponse.getLocale();
 
-        return new Response(request, statusCode, contentType, contentLength, responseHeaders, cookies, responseContent,
-                locale);
-
+        return Response.newBuilder().setRequest(request).setStatus(statusCode).setContentType(contentType)
+                .setContentLength(contentLength).setHeaders(responseHeaders).setCookies(cookies)
+                .setContent(responseContent).setLocale(locale).build();
     }
 
     /**
@@ -391,7 +395,6 @@ public class HttpComponentsRequestService implements RequestService {
      * @return Returns a map of header names to lists of header values.
      */
     private Map<String, List<String>> getResponseHeaders(HttpResponse httpResponse) {
-
         Map<String, List<String>> responseHeaders = new HashMap<String, List<String>>();
 
         Header[] responseHeaderValues = httpResponse.getAllHeaders();
@@ -408,7 +411,6 @@ public class HttpComponentsRequestService implements RequestService {
         }
 
         return responseHeaders;
-
     }
 
     /**
@@ -421,7 +423,6 @@ public class HttpComponentsRequestService implements RequestService {
      *         specified {@link HttpResponse}.
      */
     private Map<String, Cookie> getCookiesFromResponse(HttpResponse httpResponse) {
-
         Map<String, Cookie> cookies = new HashMap<String, Cookie>();
 
         Header[] cookieHeaders = httpResponse.getHeaders("Set-Cookie");
@@ -460,5 +461,4 @@ public class HttpComponentsRequestService implements RequestService {
 
         return cookies;
     }
-
 }

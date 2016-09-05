@@ -16,6 +16,10 @@ import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Logger;
 
+import com.interzonedev.httpcore.HttpException;
+import com.interzonedev.httpcore.Method;
+import com.interzonedev.httpcore.Request;
+import com.interzonedev.httpcore.Response;
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.AsyncHttpClient;
 import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
@@ -23,7 +27,7 @@ import com.ning.http.client.ListenableFuture;
 
 public class NingRequestService implements RequestService {
 
-    private final Logger log = (Logger) LoggerFactory.getLogger(getClass());
+    private static final Logger log = (Logger) LoggerFactory.getLogger(NingRequestService.class);
 
     private final AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
 
@@ -35,33 +39,52 @@ public class NingRequestService implements RequestService {
     }
 
     @Override
-    public Response doSynchronousRequest(Request request) throws Exception {
-        Future<Response> responseFuture = doRequest(request);
-        Response response = responseFuture.get();
-        return response;
+    public Response doSynchronousRequest(Request request) throws HttpException {
+        try {
+            log.debug("doSynchronousRequest: Start - request = " + request);
+            Future<Response> responseFuture = doRequest(request);
+            Response response = responseFuture.get();
+            log.debug("doSynchronousRequest: Returning response = " + response);
+            return response;
+        } catch (Exception e) {
+            String errorMessage = "Error performing synchronous HTTP request";
+            log.error("doSynchronousRequest: " + errorMessage, e);
+            throw new HttpException(errorMessage, e);
+        } finally {
+            log.debug("doSynchronousRequest: End");
+        }
     }
 
     @Override
-    public Future<Response> doRequest(final Request request) throws Exception {
+    public Future<Response> doRequest(final Request request) throws HttpException {
+        try {
+            log.debug("doRequest: Start - request = " + request);
 
-        BoundRequestBuilder requestBuilder = getRequestBuilderFromRequest(request);
+            BoundRequestBuilder requestBuilder = getRequestBuilderFromRequest(request);
 
-        final ListenableFuture<Response> responseFuture = requestBuilder
-                .execute(new AsyncCompletionHandler<Response>() {
+            final ListenableFuture<Response> responseFuture = requestBuilder
+                    .execute(new AsyncCompletionHandler<Response>() {
+                        @Override
+                        public Response onCompleted(com.ning.http.client.Response ningResponse) throws Exception {
+                            return transformResponse(request, ningResponse);
+                        }
 
-                    @Override
-                    public Response onCompleted(com.ning.http.client.Response ningResponse) throws Exception {
-                        Response response = transformResponse(request, ningResponse);
-                        return response;
-                    }
+                        @Override
+                        public void onThrowable(Throwable t) {
+                            log.error("onThrowable: Error making request", t);
+                        }
+                    });
 
-                    @Override
-                    public void onThrowable(Throwable t) {
-                        log.error("Error making request", t);
-                    }
-                });
+            log.debug("doRequest: Got response future");
 
-        return responseFuture;
+            return responseFuture;
+        } catch (Exception e) {
+            String errorMessage = "Error performing asynchronous HTTP request";
+            log.error("doRequest: " + errorMessage, e);
+            throw new HttpException(errorMessage, e);
+        } finally {
+            log.debug("doRequest: End");
+        }
     }
 
     /**
@@ -75,7 +98,6 @@ public class NingRequestService implements RequestService {
      *         value object.
      */
     private BoundRequestBuilder getRequestBuilderFromRequest(Request request) throws UnsupportedEncodingException {
-
         String url = request.getUrl();
 
         Method method = request.getMethod();
@@ -113,30 +135,24 @@ public class NingRequestService implements RequestService {
         addRequestHeadersToRequestBuilder(requestBuilder, request);
 
         return requestBuilder;
-
     }
 
     private void addRequestParametersToRequestBuilder(BoundRequestBuilder requestBuilder, Request request) {
-
         Method method = request.getMethod();
-
         Map<String, List<String>> parameters = request.getParameters();
         for (String parameterName : parameters.keySet()) {
             List<String> parameterValues = parameters.get(parameterName);
             for (String parameterValue : parameterValues) {
-
                 switch (method) {
                     case POST:
                     case PUT:
-                        requestBuilder.addFormParam(parameterName, parameterValue);
+                        requestBuilder.addFormParam(parameterName, parameterValue.toString());
                         break;
                     default:
-                        requestBuilder.addQueryParam(parameterName, parameterValue);
+                        requestBuilder.addQueryParam(parameterName, parameterValue.toString());
                 }
-
             }
         }
-
     }
 
     private void addRequestHeadersToRequestBuilder(BoundRequestBuilder requestBuilder, Request request) {
@@ -162,7 +178,6 @@ public class NingRequestService implements RequestService {
     @SuppressWarnings("unused")
     @Deprecated
     private String getUrlWithQueryString(Request request) {
-
         StringBuilder url = new StringBuilder(request.getUrl());
 
         Method method = request.getMethod();
@@ -203,11 +218,9 @@ public class NingRequestService implements RequestService {
         }
 
         return url.toString();
-
     }
 
     private Response transformResponse(Request request, com.ning.http.client.Response ningResponse) throws IOException {
-
         int statusCode = ningResponse.getStatusCode();
 
         String contentType = ningResponse.getContentType();
@@ -224,12 +237,12 @@ public class NingRequestService implements RequestService {
         // TODO - Get locale from headers
         Locale locale = null;
 
-        return new Response(request, statusCode, contentType, contentLength, responseHeaders, cookies, responseContent,
-                locale);
+        return Response.newBuilder().setRequest(request).setStatus(statusCode).setContentType(contentType)
+                .setContentLength(contentLength).setHeaders(responseHeaders).setCookies(cookies)
+                .setContent(responseContent).setLocale(locale).build();
     }
 
     private Map<String, Cookie> getCookiesFromResponse(com.ning.http.client.Response ningResponse) {
-
         Map<String, Cookie> cookies = new HashMap<String, Cookie>();
 
         List<com.ning.http.client.cookie.Cookie> ningCookies = ningResponse.getCookies();
