@@ -17,7 +17,7 @@
     <description>
         A framework for making synchronous and asynchronous HTTP requests.
     </description>
-    <url>https://github.com/interzonedev/HttpAgent</url>
+    <url>https://github.com/interzonedev/httpagent</url>
     <inceptionYear>2012</inceptionYear>
 
     <dependencies>
