@@ -1,5 +1,18 @@
 package com.interzonedev.httpagent;
 
+import com.interzonedev.httpcore.HttpException;
+import com.interzonedev.httpcore.Method;
+import com.interzonedev.httpcore.Request;
+import com.interzonedev.httpcore.Response;
+import com.ning.http.client.AsyncCompletionHandler;
+import com.ning.http.client.AsyncHttpClient;
+import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
+import com.ning.http.client.ListenableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.PreDestroy;
+import javax.servlet.http.Cookie;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -9,25 +22,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Future;
 
-import javax.annotation.PreDestroy;
-import javax.servlet.http.Cookie;
-
-import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.Logger;
-
-import com.interzonedev.httpcore.HttpException;
-import com.interzonedev.httpcore.Method;
-import com.interzonedev.httpcore.Request;
-import com.interzonedev.httpcore.Response;
-import com.ning.http.client.AsyncCompletionHandler;
-import com.ning.http.client.AsyncHttpClient;
-import com.ning.http.client.AsyncHttpClient.BoundRequestBuilder;
-import com.ning.http.client.ListenableFuture;
-
 public class NingRequestService implements RequestService {
 
-    private static final Logger log = (Logger) LoggerFactory.getLogger(NingRequestService.class);
+    private static final Logger log = LoggerFactory.getLogger(NingRequestService.class);
 
     private final AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
 

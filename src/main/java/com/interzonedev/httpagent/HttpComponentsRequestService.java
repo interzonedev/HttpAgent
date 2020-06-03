@@ -1,23 +1,9 @@
 package com.interzonedev.httpagent;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
-import javax.servlet.http.Cookie;
-
+import com.interzonedev.httpcore.HttpException;
+import com.interzonedev.httpcore.Method;
+import com.interzonedev.httpcore.Request;
+import com.interzonedev.httpcore.Response;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.Header;
 import org.apache.http.HeaderElement;
@@ -41,18 +27,29 @@ import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.Logger;
-
-import com.interzonedev.httpcore.HttpException;
-import com.interzonedev.httpcore.Method;
-import com.interzonedev.httpcore.Request;
-import com.interzonedev.httpcore.Response;
+import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
+import javax.servlet.http.Cookie;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class HttpComponentsRequestService implements RequestService {
 
-    private static final Logger log = (Logger) LoggerFactory.getLogger(HttpComponentsRequestService.class);
+    private static final Logger log = LoggerFactory.getLogger(HttpComponentsRequestService.class);
 
     private boolean initialized = false;
 

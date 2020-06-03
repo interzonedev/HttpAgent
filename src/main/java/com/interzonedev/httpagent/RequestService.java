@@ -9,8 +9,6 @@ import com.interzonedev.httpcore.Response;
 /**
  * Interface for performing HTTP requests and returning responses using the {@link Request} and {@link Response} value
  * objects.
- * 
- * @author mark@interzonedev.com
  */
 public interface RequestService {
 
@@ -25,7 +23,7 @@ public interface RequestService {
      * 
      * @throws HttpException Thrown if there is an error performing the HTTP request.
      */
-    public Response doSynchronousRequest(Request request) throws HttpException;
+    Response doSynchronousRequest(Request request) throws HttpException;
 
     /**
      * Performs an asynchronous HTTP request using the url, method, headers and parameters in the specified
@@ -38,6 +36,6 @@ public interface RequestService {
      * 
      * @throws HttpException Thrown if there is an error performing the HTTP request.
      */
-    public Future<Response> doRequest(Request request) throws HttpException;
+    Future<Response> doRequest(Request request) throws HttpException;
 
 }
